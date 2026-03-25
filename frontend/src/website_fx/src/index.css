@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 222 36% 8%;
+  --foreground: 0 0% 100%;
+  --card: 222 36% 10%;
+  --card-foreground: 0 0% 100%;
+  --popover: 222 36% 10%;
+  --popover-foreground: 0 0% 100%;
+  --primary: 227 100% 59%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 227 100% 64%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 222 20% 56%;
+  --muted-foreground: 222 20% 56%;
+  --accent: 227 100% 59%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 100% / 0.08;
+  --input: 222 36% 10%;
+  --ring: 227 100% 59%;
+  --radius: 0.75rem;
+  --light-bg: 0 0% 100%;
+  --light-text: 222 36% 8%;
+}
+
+.dark {
+  --background: 222 36% 8%;
+  --foreground: 0 0% 100%;
+  --card: 222 36% 10%;
+  --card-foreground: 0 0% 100%;
+  --popover: 222 36% 10%;
+  --popover-foreground: 0 0% 100%;
+  --primary: 227 100% 59%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 227 100% 64%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 222 20% 56%;
+  --muted-foreground: 222 20% 56%;
+  --accent: 227 100% 59%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 62% 30%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 100% / 0.08;
+  --input: 222 36% 10%;
+  --ring: 227 100% 59%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html, body, #root {
+    height: 100%;
+    min-height: 100%;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold;
+    letter-spacing: -0.02em;
+  }
+}
+
+@layer utilities {
+  .pill-button {
+    @apply rounded-full px-6 py-3 font-semibold transition-all duration-200;
+  }
+  .pill-button-primary {
+    @apply bg-primary text-white hover:bg-secondary;
+  }
+  .pill-button-outline {
+    @apply border-2 border-primary text-primary hover:bg-primary hover:text-white;
+  }
+  .section-padding {
+    @apply py-20 lg:py-28;
+  }
+  .card-rounded {
+    @apply rounded-xl lg:rounded-2xl;
+  }
+}
