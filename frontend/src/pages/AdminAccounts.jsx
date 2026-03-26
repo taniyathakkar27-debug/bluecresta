@@ -20,6 +20,7 @@ import {
   Copy
 } from 'lucide-react'
 import { API_URL } from '../config/api'
+import { getAdminToken, getAdminUser, clearAdminSession } from '../utils/adminSession'
 
 const AdminAccounts = () => {
   const { isDarkMode } = useTheme()
@@ -54,7 +55,7 @@ const AdminAccounts = () => {
   ]
 
   useEffect(() => {
-    const adminToken = localStorage.getItem('adminToken')
+    const adminToken = getAdminToken()
     if (!adminToken) navigate('/admin')
     fetchAccounts()
   }, [navigate])
@@ -180,10 +181,10 @@ const AdminAccounts = () => {
   )
 
   const handleLogout = () => {
-    localStorage.removeItem('adminToken')
-    localStorage.removeItem('adminUser')
+    const wasSub = getAdminUser()?.role === 'ADMIN'
+    clearAdminSession()
     toast.success('Logged out successfully!')
-    navigate('/admin')
+    navigate(wasSub ? '/sub-admin' : '/admin')
   }
 
   return (

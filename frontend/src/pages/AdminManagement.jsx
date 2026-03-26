@@ -24,6 +24,7 @@ import {
   Lock
 } from 'lucide-react'
 import { API_URL, getSiteOrigin } from '../config/api'
+import { getAdminUser, notifyAdminProfileUpdated } from '../utils/adminSession'
 
 const AdminManagement = () => {
   const navigate = useNavigate()
@@ -89,8 +90,7 @@ const AdminManagement = () => {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem('adminUser')
-      const u = raw ? JSON.parse(raw) : null
+      const u = getAdminUser()
       if (!u || u.role !== 'SUPER_ADMIN') {
         toast.error('Only super admin can access Admin Management')
         navigate('/admin/dashboard', { replace: true })
@@ -173,6 +173,7 @@ const AdminManagement = () => {
       const data = await res.json()
       if (data.success) {
         toast.success('Permissions updated successfully!')
+        notifyAdminProfileUpdated()
         setShowPermissionsModal(false)
         fetchAdmins()
       } else {
@@ -219,6 +220,7 @@ const AdminManagement = () => {
       })
       const data = await res.json()
       if (data.success) {
+        notifyAdminProfileUpdated()
         fetchAdmins()
       }
     } catch (error) {

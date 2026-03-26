@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import AdminLayout from '../components/AdminLayout'
 import { API_URL } from '../config/api'
+import { getAdminUser } from '../utils/adminSession'
 import { useTheme } from '../context/ThemeContext'
 import { 
   AlertTriangle,
@@ -46,7 +47,7 @@ const AdminMarginAlerts = () => {
   const [loadingAccounts, setLoadingAccounts] = useState(false)
   const [selectedAccount, setSelectedAccount] = useState(null)
   
-  const adminUser = JSON.parse(localStorage.getItem('adminUser') || '{}')
+  const adminUser = getAdminUser() || {}
   const { isDarkMode } = useTheme()
 
   useEffect(() => {

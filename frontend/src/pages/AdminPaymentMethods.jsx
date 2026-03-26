@@ -18,6 +18,7 @@ import {
   QrCode
 } from 'lucide-react'
 import { API_URL } from '../config/api'
+import { getAdminToken, getAdminUser, clearAdminSession } from '../utils/adminSession'
 
 const AdminPaymentMethods = () => {
   const navigate = useNavigate()
@@ -49,7 +50,7 @@ const AdminPaymentMethods = () => {
   ]
 
   useEffect(() => {
-    const adminToken = localStorage.getItem('adminToken')
+    const adminToken = getAdminToken()
     if (!adminToken) navigate('/admin')
     fetchPaymentMethods()
   }, [navigate])
@@ -140,10 +141,10 @@ const AdminPaymentMethods = () => {
   }
 
   const handleLogout = () => {
-    localStorage.removeItem('adminToken')
-    localStorage.removeItem('adminUser')
+    const wasSub = getAdminUser()?.role === 'ADMIN'
+    clearAdminSession()
     toast.success('Logged out successfully!')
-    navigate('/admin')
+    navigate(wasSub ? '/sub-admin' : '/admin')
   }
 
   return (

@@ -16,6 +16,7 @@ import {
   X
 } from 'lucide-react'
 import { API_URL } from '../config/api'
+import { getAdminUser } from '../utils/adminSession'
 
 const AdminSupport = () => {
   const { isDarkMode } = useTheme()
@@ -28,7 +29,7 @@ const AdminSupport = () => {
   const [replyMessage, setReplyMessage] = useState('')
   const [sendingReply, setSendingReply] = useState(false)
 
-  const adminUser = JSON.parse(localStorage.getItem('adminUser') || '{}')
+  const adminUser = getAdminUser() || {}
 
   useEffect(() => {
     fetchTickets()

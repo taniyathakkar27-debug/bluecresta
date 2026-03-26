@@ -9,6 +9,7 @@ import { X, Mail, Lock, Eye, EyeOff, ArrowLeft } from 'lucide-react'
 import logo from '../assets/logo.png'
 
 import { API_URL } from '../config/api'
+import { setAdminSession } from '../utils/adminSession'
 
 
 
@@ -109,8 +110,7 @@ const AdminLogin = () => {
       const data = await response.json()
 
       if (data.success) {
-        localStorage.setItem('adminToken', data.token)
-        localStorage.setItem('adminUser', JSON.stringify(data.admin))
+        setAdminSession(data.token, data.admin)
         toast.success('Admin login successful!')
         navigate('/admin/dashboard')
       } else {

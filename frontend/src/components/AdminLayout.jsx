@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { 
@@ -33,14 +33,13 @@ import {
 import logoImage from '../assets/logo.png'
 import { useTheme } from '../context/ThemeContext'
 import { canAccessAdminPath } from '../utils/adminAccess'
-
-function readAdminUser() {
-  try {
-    return JSON.parse(localStorage.getItem('adminUser') || 'null')
-  } catch {
-    return null
-  }
-}
+import {
+  getAdminToken,
+  getAdminUser,
+  clearAdminSession,
+  refreshAdminProfileFromApi,
+  subscribeAdminProfileBroadcast
+} from '../utils/adminSession'
 
 const AdminLayout = ({ children, title, subtitle }) => {
   const navigate = useNavigate()
@@ -75,17 +74,48 @@ const AdminLayout = ({ children, title, subtitle }) => {
     { name: 'Technical Analysis', icon: LineChart, path: '/admin/technical-analysis' },
   ]
 
-  const adminUser = readAdminUser()
+  const [adminUser, setAdminUser] = useState(() => getAdminUser())
   const menuItems = allMenuItems.filter((item) => canAccessAdminPath(item.path, adminUser))
 
-  // Check if user is in investor mode (uses sessionStorage - tab specific)
-  // Admin uses localStorage, Investor uses sessionStorage
-  const adminToken = localStorage.getItem('adminToken')
+  // Investor mode is tab-specific (sessionStorage). Admin session is also sessionStorage (per tab).
+  const adminToken = getAdminToken()
   const investorModeFlag = sessionStorage.getItem('investorMode') === 'true'
   const isInvestorMode = investorModeFlag
 
+  const applyProfileRefresh = useCallback(async () => {
+    if (isInvestorMode) return
+    if (!getAdminToken()) return
+    const result = await refreshAdminProfileFromApi()
+    if (result === 'unauthorized') {
+      const wasSub = getAdminUser()?.role === 'ADMIN'
+      clearAdminSession()
+      toast.error('Session expired or account suspended')
+      navigate(wasSub ? '/sub-admin' : '/admin')
+      return
+    }
+    if (result === 'ok') {
+      setAdminUser(getAdminUser())
+    }
+  }, [isInvestorMode, navigate])
+
   useEffect(() => {
-    const token = localStorage.getItem('adminToken')
+    if (isInvestorMode) return
+    applyProfileRefresh()
+    const interval = setInterval(applyProfileRefresh, 8000)
+    const unsubscribeBc = subscribeAdminProfileBroadcast(applyProfileRefresh)
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') applyProfileRefresh()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      clearInterval(interval)
+      unsubscribeBc()
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [isInvestorMode, applyProfileRefresh])
+
+  useEffect(() => {
+    const token = getAdminToken()
     const investorMode = sessionStorage.getItem('investorMode')
 
     if (!token && !investorMode) {
@@ -95,29 +125,23 @@ const AdminLayout = ({ children, title, subtitle }) => {
 
   useEffect(() => {
     if (isInvestorMode) return
-    const token = localStorage.getItem('adminToken')
+    const token = getAdminToken()
     if (!token) return
-    const user = readAdminUser()
-    if (!canAccessAdminPath(location.pathname, user)) {
+    if (!canAccessAdminPath(location.pathname, adminUser)) {
       toast.error('You do not have permission to access this section')
       navigate('/admin/dashboard', { replace: true })
     }
-  }, [location.pathname, navigate, isInvestorMode])
+  }, [location.pathname, navigate, isInvestorMode, adminUser])
 
   const handleLogout = () => {
     const wasInvestor = isInvestorMode
     let subAdminLogout = false
     if (!wasInvestor) {
-      try {
-        const u = JSON.parse(localStorage.getItem('adminUser') || 'null')
-        if (u?.role === 'ADMIN') subAdminLogout = true
-      } catch {
-        /* ignore */
-      }
+      const u = getAdminUser()
+      if (u?.role === 'ADMIN') subAdminLogout = true
     }
 
-    localStorage.removeItem('adminToken')
-    localStorage.removeItem('adminUser')
+    clearAdminSession()
 
     sessionStorage.removeItem('investorMode')
     sessionStorage.removeItem('investorAccessType')

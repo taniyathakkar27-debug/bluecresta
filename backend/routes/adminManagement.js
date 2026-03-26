@@ -101,11 +101,57 @@ router.post('/login', async (req, res) => {
         urlSlug: admin.urlSlug,
         brandName: admin.brandName,
         permissions: admin.permissions,
-        walletBalance: wallet?.balance || 0
+        walletBalance: wallet?.balance || 0,
+        status: admin.status
       }
     })
   } catch (error) {
     res.status(500).json({ message: 'Login failed', error: error.message })
+  }
+})
+
+// GET /api/admin-mgmt/me — current admin from JWT (fresh permissions for sub-admins)
+router.get('/me', async (req, res) => {
+  try {
+    const auth = req.headers.authorization
+    if (!auth || !auth.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' })
+    }
+    const token = auth.slice(7)
+    let payload
+    try {
+      payload = jwt.verify(token, JWT_SECRET)
+    } catch {
+      return res.status(401).json({ success: false, message: 'Invalid or expired token' })
+    }
+
+    const admin = await Admin.findById(payload.adminId).select('-password')
+    if (!admin) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' })
+    }
+    if (admin.status !== 'ACTIVE') {
+      return res.status(403).json({ success: false, message: 'Account is suspended or pending' })
+    }
+
+    const wallet = await AdminWallet.findOne({ adminId: admin._id })
+
+    res.json({
+      success: true,
+      admin: {
+        _id: admin._id,
+        email: admin.email,
+        firstName: admin.firstName,
+        lastName: admin.lastName,
+        role: admin.role,
+        urlSlug: admin.urlSlug,
+        brandName: admin.brandName,
+        permissions: admin.permissions,
+        walletBalance: wallet?.balance || 0,
+        status: admin.status
+      }
+    })
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message })
   }
 })
 

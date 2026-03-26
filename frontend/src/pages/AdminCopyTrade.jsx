@@ -18,6 +18,7 @@ import {
   Clock
 } from 'lucide-react'
 import { API_URL } from '../config/api'
+import { getAdminUser } from '../utils/adminSession'
 
 const AdminCopyTrade = () => {
   const { isDarkMode } = useTheme()
@@ -35,7 +36,7 @@ const AdminCopyTrade = () => {
     adminSharePercentage: 30
   })
 
-  const adminUser = JSON.parse(localStorage.getItem('adminUser') || '{}')
+  const adminUser = getAdminUser() || {}
 
   useEffect(() => {
     fetchDashboard()

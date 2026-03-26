@@ -16,6 +16,7 @@ import {
   XCircle
 } from 'lucide-react'
 import { API_URL } from '../config/api'
+import { getAdminToken, getAdminUser, clearAdminSession } from '../utils/adminSession'
 
 const AdminTransactions = () => {
   const navigate = useNavigate()
@@ -40,7 +41,7 @@ const AdminTransactions = () => {
   ]
 
   useEffect(() => {
-    const adminToken = localStorage.getItem('adminToken')
+    const adminToken = getAdminToken()
     if (!adminToken) navigate('/admin')
     fetchTransactions()
   }, [navigate])
@@ -90,10 +91,10 @@ const AdminTransactions = () => {
   const formatDate = (d) => new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
   const handleLogout = () => {
-    localStorage.removeItem('adminToken')
-    localStorage.removeItem('adminUser')
+    const wasSub = getAdminUser()?.role === 'ADMIN'
+    clearAdminSession()
     toast.success('Logged out successfully!')
-    navigate('/admin')
+    navigate(wasSub ? '/sub-admin' : '/admin')
   }
 
   return (

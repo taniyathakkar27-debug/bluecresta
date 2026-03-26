@@ -15,6 +15,7 @@ import {
   Minus
 } from 'lucide-react'
 import { API_URL } from '../config/api'
+import { getAdminUser } from '../utils/adminSession'
 import { useTheme } from '../context/ThemeContext'
 
 const AdminCreditRequests = () => {
@@ -35,7 +36,7 @@ const AdminCreditRequests = () => {
   const [userAccounts, setUserAccounts] = useState([])
   const [creditLoading, setCreditLoading] = useState(false)
 
-  const adminUser = JSON.parse(localStorage.getItem('adminUser') || '{}')
+  const adminUser = getAdminUser() || {}
 
   useEffect(() => {
     fetchCreditRequests()

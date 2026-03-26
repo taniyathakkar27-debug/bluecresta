@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { X, Mail, Lock, Eye, EyeOff } from 'lucide-react'
 import logo from '../assets/logo.png'
 import { API_URL } from '../config/api'
+import { setAdminSession } from '../utils/adminSession'
 
 const SubAdminLogin = () => {
   const navigate = useNavigate()
@@ -36,8 +37,7 @@ const SubAdminLogin = () => {
       const data = await response.json()
 
       if (data.success) {
-        localStorage.setItem('adminToken', data.token)
-        localStorage.setItem('adminUser', JSON.stringify(data.admin))
+        setAdminSession(data.token, data.admin)
         toast.success('Sub-admin login successful!')
         navigate('/admin/dashboard')
       } else {

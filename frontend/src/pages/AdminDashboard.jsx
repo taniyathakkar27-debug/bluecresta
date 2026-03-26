@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { useTheme } from '../context/ThemeContext'
 import { API_URL } from '../config/api'
+import { getAdminToken, getAdminUser, clearAdminSession } from '../utils/adminSession'
 // import BonusManagement from './admin/BonusManagement.jsx'
 
 // Temporarily remove import to test
@@ -62,7 +63,7 @@ console.log('Menu items:', menuItems)
 
   // Check admin auth
   useEffect(() => {
-    const adminToken = localStorage.getItem('adminToken')
+    const adminToken = getAdminToken()
     if (!adminToken) {
       navigate('/admin')
     }
@@ -87,10 +88,10 @@ console.log('Menu items:', menuItems)
   }, [])
 
   const handleLogout = () => {
-    localStorage.removeItem('adminToken')
-    localStorage.removeItem('adminUser')
+    const wasSub = getAdminUser()?.role === 'ADMIN'
+    clearAdminSession()
     toast.success('Logged out successfully!')
-    navigate('/admin')
+    navigate(wasSub ? '/sub-admin' : '/admin')
   }
 
   const filteredUsers = users.filter(user => 

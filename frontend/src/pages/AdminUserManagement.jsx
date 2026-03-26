@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import AdminLayout from '../components/AdminLayout'
 import { useTheme } from '../context/ThemeContext'
 import { API_URL } from '../config/api'
+import { getAdminUser } from '../utils/adminSession'
 import { 
   Search,
   Mail,
@@ -76,7 +77,7 @@ const AdminUserManagement = () => {
   const [createLoading, setCreateLoading] = useState(false)
   const [createMessage, setCreateMessage] = useState({ type: '', text: '' })
   
-  const adminUser = JSON.parse(localStorage.getItem('adminUser') || '{}')
+  const adminUser = getAdminUser() || {}
 
   useEffect(() => {
     fetchUsers()
