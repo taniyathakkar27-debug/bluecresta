@@ -64,6 +64,75 @@ router.post('/login', async (req, res) => {
   }
 })
 
+// POST /api/admin-mgmt/verify-current-password — step 1 for self-service password change (login page)
+router.post('/verify-current-password', async (req, res) => {
+  try {
+    const { email, oldPassword } = req.body
+    if (!email || !oldPassword) {
+      return res.status(400).json({ success: false, message: 'Email and current password are required' })
+    }
+
+    const admin = await Admin.findOne({ email: String(email).toLowerCase().trim() })
+    if (!admin) {
+      return res.status(401).json({ success: false, message: 'Invalid email or password' })
+    }
+    if (admin.status !== 'ACTIVE') {
+      return res.status(403).json({ success: false, message: 'Account is suspended or pending' })
+    }
+
+    const isMatch = await bcrypt.compare(oldPassword, admin.password)
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: 'Invalid email or password' })
+    }
+
+    res.json({ success: true, message: 'Verified. You can set a new password.' })
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Verification failed', error: error.message })
+  }
+})
+
+// PUT /api/admin-mgmt/change-password — self-service; verifies current password then updates (no token)
+router.put('/change-password', async (req, res) => {
+  try {
+    const { email, oldPassword, newPassword, confirmPassword } = req.body
+    if (!email || !oldPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({ success: false, message: 'All fields are required' })
+    }
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ success: false, message: 'New passwords do not match' })
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 6 characters' })
+    }
+    if (oldPassword === newPassword) {
+      return res.status(400).json({ success: false, message: 'New password must be different from your current password' })
+    }
+
+    const admin = await Admin.findOne({ email: String(email).toLowerCase().trim() })
+    if (!admin) {
+      return res.status(401).json({ success: false, message: 'Invalid email or password' })
+    }
+    if (admin.status !== 'ACTIVE') {
+      return res.status(403).json({ success: false, message: 'Account is suspended or pending' })
+    }
+
+    const isMatch = await bcrypt.compare(oldPassword, admin.password)
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: 'Invalid email or password' })
+    }
+
+    admin.password = await bcrypt.hash(newPassword, 10)
+    await admin.save()
+
+    res.json({
+      success: true,
+      message: 'Password changed successfully. Sign in with your new password.'
+    })
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to change password', error: error.message })
+  }
+})
+
 // ==================== SUPER ADMIN - ADMIN MANAGEMENT ====================
 
 // GET /api/admin-mgmt/admins - Get all admins (super admin only)
