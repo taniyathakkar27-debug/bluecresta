@@ -436,17 +436,6 @@ const AdminManagement = () => {
                         {copiedSlug === admin.urlSlug ? <Check size={14} /> : <Copy size={14} />}
                       </button>
                     </div>
-                    <div className="flex items-start gap-2 text-gray-400">
-                      <Shield size={14} className="shrink-0 mt-0.5" />
-                      <div className="min-w-0">
-                        <span className="text-gray-500 text-xs block">Sub-admin login</span>
-                        <span className="text-cyan-400/90 text-xs break-all">{subAdminLoginUrl}</span>
-                        <button type="button" onClick={copySubAdminLoginUrl} className="text-blue-500 mt-1 inline-flex items-center gap-1">
-                          {copiedSubAdminUrl ? <Check size={14} /> : <Copy size={14} />}
-                          <span className="text-xs">Copy</span>
-                        </button>
-                      </div>
-                    </div>
                     <div className="flex items-center gap-2 text-gray-400">
                       <Wallet size={14} />
                       <span>Balance: ${admin.walletBalance?.toLocaleString() || 0}</span>
@@ -499,7 +488,6 @@ const AdminManagement = () => {
                   <tr className="border-b border-gray-700">
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Admin</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">URL Slug</th>
-                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4 min-w-[200px]">Sub-admin login</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Wallet</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Users</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Permissions</th>
@@ -529,24 +517,6 @@ const AdminManagement = () => {
                             className="text-blue-500 hover:text-blue-400"
                           >
                             {copiedSlug === admin.urlSlug ? <Check size={14} /> : <Copy size={14} />}
-                          </button>
-                        </div>
-                      </td>
-                      <td className="py-4 px-4 align-top">
-                        <div className="flex items-start gap-2 max-w-[240px]">
-                          <span
-                            className="text-cyan-400/90 text-xs font-mono break-all leading-snug"
-                            title={subAdminLoginUrl}
-                          >
-                            {subAdminLoginUrl}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={copySubAdminLoginUrl}
-                            className="text-blue-500 hover:text-blue-400 shrink-0 p-0.5"
-                            title="Copy sub-admin login URL"
-                          >
-                            {copiedSubAdminUrl ? <Check size={14} /> : <Copy size={14} />}
                           </button>
                         </div>
                       </td>
