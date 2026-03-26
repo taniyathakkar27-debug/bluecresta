@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import AdminLayout from '../components/AdminLayout'
 import { useTheme } from '../context/ThemeContext'
@@ -22,9 +23,10 @@ import {
   AlertCircle,
   Lock
 } from 'lucide-react'
-import { API_URL } from '../config/api'
+import { API_URL, getSiteOrigin } from '../config/api'
 
 const AdminManagement = () => {
+  const navigate = useNavigate()
   const { isDarkMode } = useTheme()
   const [searchTerm, setSearchTerm] = useState('')
   const [admins, setAdmins] = useState([])
@@ -37,6 +39,9 @@ const AdminManagement = () => {
   const [selectedAdmin, setSelectedAdmin] = useState(null)
   const [newPassword, setNewPassword] = useState('')
   const [copiedSlug, setCopiedSlug] = useState(null)
+  const [copiedSubAdminUrl, setCopiedSubAdminUrl] = useState(false)
+
+  const subAdminLoginUrl = `${getSiteOrigin()}/sub-admin`
   
   const [newAdmin, setNewAdmin] = useState({
     email: '',
@@ -83,8 +88,20 @@ const AdminManagement = () => {
   ]
 
   useEffect(() => {
+    try {
+      const raw = localStorage.getItem('adminUser')
+      const u = raw ? JSON.parse(raw) : null
+      if (!u || u.role !== 'SUPER_ADMIN') {
+        toast.error('Only super admin can access Admin Management')
+        navigate('/admin/dashboard', { replace: true })
+        return
+      }
+    } catch {
+      navigate('/admin/dashboard', { replace: true })
+      return
+    }
     fetchAdmins()
-  }, [])
+  }, [navigate])
 
   const fetchAdmins = async () => {
     try {
@@ -108,7 +125,7 @@ const AdminManagement = () => {
       })
       const data = await res.json()
       if (data.success) {
-        toast.success('Admin created successfully!')
+        toast.success(`Admin created. Sub-admin login: ${subAdminLoginUrl}`, { duration: 6000 })
         setShowAddModal(false)
         setNewAdmin({ email: '', password: '', firstName: '', lastName: '', phone: '', urlSlug: '', brandName: '', permissions: {} })
         fetchAdmins()
@@ -252,10 +269,17 @@ const AdminManagement = () => {
   }
 
   const copyToClipboard = (slug) => {
-    const url = `${window.location.origin}/${slug}/login`
+    const url = `${getSiteOrigin()}/${slug}/login`
     navigator.clipboard.writeText(url)
     setCopiedSlug(slug)
     setTimeout(() => setCopiedSlug(null), 2000)
+  }
+
+  const copySubAdminLoginUrl = () => {
+    navigator.clipboard.writeText(subAdminLoginUrl)
+    setCopiedSubAdminUrl(true)
+    toast.success('Sub-admin login URL copied')
+    setTimeout(() => setCopiedSubAdminUrl(false), 2000)
   }
 
   const filteredAdmins = admins.filter(admin => 
@@ -322,6 +346,31 @@ const AdminManagement = () => {
 
       {/* Admin List */}
       <div className={`rounded-xl border overflow-hidden ${isDarkMode ? 'bg-dark-800 border-gray-800' : 'bg-white border-gray-200'}`}>
+        <div
+          className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 sm:px-5 py-3 border-b ${
+            isDarkMode ? 'border-gray-800 bg-dark-900/50' : 'border-gray-200 bg-gray-50'
+          }`}
+        >
+          <div className="min-w-0 flex-1">
+            <p className={`text-xs font-medium uppercase tracking-wide ${isDarkMode ? 'text-gray-500' : 'text-gray-600'}`}>
+              Sub-admin login (all sub-admins)
+            </p>
+            <p
+              className={`text-sm font-mono truncate mt-0.5 ${isDarkMode ? 'text-cyan-400' : 'text-cyan-700'}`}
+              title={subAdminLoginUrl}
+            >
+              {subAdminLoginUrl}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={copySubAdminLoginUrl}
+            className="shrink-0 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-cyan-500/15 text-cyan-400 hover:bg-cyan-500/25 border border-cyan-500/30 text-sm font-medium"
+          >
+            {copiedSubAdminUrl ? <Check size={16} /> : <Copy size={16} />}
+            {copiedSubAdminUrl ? 'Copied' : 'Copy URL'}
+          </button>
+        </div>
         <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-5 border-b ${isDarkMode ? 'border-gray-800' : 'border-gray-200'}`}>
           <h2 className={`font-semibold text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Sub-Admins</h2>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -387,6 +436,17 @@ const AdminManagement = () => {
                         {copiedSlug === admin.urlSlug ? <Check size={14} /> : <Copy size={14} />}
                       </button>
                     </div>
+                    <div className="flex items-start gap-2 text-gray-400">
+                      <Shield size={14} className="shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <span className="text-gray-500 text-xs block">Sub-admin login</span>
+                        <span className="text-cyan-400/90 text-xs break-all">{subAdminLoginUrl}</span>
+                        <button type="button" onClick={copySubAdminLoginUrl} className="text-blue-500 mt-1 inline-flex items-center gap-1">
+                          {copiedSubAdminUrl ? <Check size={14} /> : <Copy size={14} />}
+                          <span className="text-xs">Copy</span>
+                        </button>
+                      </div>
+                    </div>
                     <div className="flex items-center gap-2 text-gray-400">
                       <Wallet size={14} />
                       <span>Balance: ${admin.walletBalance?.toLocaleString() || 0}</span>
@@ -439,6 +499,7 @@ const AdminManagement = () => {
                   <tr className="border-b border-gray-700">
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Admin</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">URL Slug</th>
+                    <th className="text-left text-gray-500 text-sm font-medium py-3 px-4 min-w-[200px]">Sub-admin login</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Wallet</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Users</th>
                     <th className="text-left text-gray-500 text-sm font-medium py-3 px-4">Permissions</th>
@@ -468,6 +529,24 @@ const AdminManagement = () => {
                             className="text-blue-500 hover:text-blue-400"
                           >
                             {copiedSlug === admin.urlSlug ? <Check size={14} /> : <Copy size={14} />}
+                          </button>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4 align-top">
+                        <div className="flex items-start gap-2 max-w-[240px]">
+                          <span
+                            className="text-cyan-400/90 text-xs font-mono break-all leading-snug"
+                            title={subAdminLoginUrl}
+                          >
+                            {subAdminLoginUrl}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={copySubAdminLoginUrl}
+                            className="text-blue-500 hover:text-blue-400 shrink-0 p-0.5"
+                            title="Copy sub-admin login URL"
+                          >
+                            {copiedSubAdminUrl ? <Check size={14} /> : <Copy size={14} />}
                           </button>
                         </div>
                       </td>
@@ -604,7 +683,7 @@ const AdminManagement = () => {
                     placeholder="my-trading"
                   />
                 </div>
-                <p className="text-gray-500 text-xs mt-1">Users will access: {window.location.origin}/{newAdmin.urlSlug || 'slug'}/login</p>
+                <p className="text-gray-500 text-xs mt-1">Users will access: {getSiteOrigin()}/{newAdmin.urlSlug || 'slug'}/login</p>
               </div>
               <div>
                 <label className="text-gray-400 text-sm mb-1 block">Brand Name</label>
@@ -628,23 +707,35 @@ const AdminManagement = () => {
               </div>
               
               <div>
-                <label className="text-gray-400 text-sm mb-2 block">Default Permissions</label>
-                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto bg-dark-700 rounded-lg p-3">
-                  {allPermissions.slice(0, 10).map(perm => (
-                    <label key={perm.key} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={newAdmin.permissions[perm.key] || false}
-                        onChange={(e) => setNewAdmin({
-                          ...newAdmin,
-                          permissions: {...newAdmin.permissions, [perm.key]: e.target.checked}
-                        })}
-                        className="rounded"
-                      />
-                      <span className="text-gray-300">{perm.label}</span>
-                    </label>
+                <label className="text-gray-400 text-sm mb-2 block">Permissions (only checked items apply)</label>
+                <div className="max-h-56 overflow-y-auto bg-dark-700 rounded-lg p-3 space-y-3">
+                  {['Users', 'Trading', 'Accounts', 'Finance', 'KYC', 'IB', 'Copy Trade', 'Settings', 'Reports'].map((category) => (
+                    <div key={category}>
+                      <h4 className="text-white text-xs font-medium mb-1.5">{category}</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {allPermissions.filter((p) => p.category === category).map((perm) => (
+                          <label key={perm.key} className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={newAdmin.permissions[perm.key] || false}
+                              onChange={(e) =>
+                                setNewAdmin({
+                                  ...newAdmin,
+                                  permissions: { ...newAdmin.permissions, [perm.key]: e.target.checked },
+                                })
+                              }
+                              className="rounded"
+                            />
+                            <span className="text-gray-300">{perm.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
+                <p className="text-gray-500 text-xs mt-2">
+                  Sub-admins sign in at <span className="text-cyan-400 break-all">{subAdminLoginUrl}</span> and only see sections allowed here.
+                </p>
               </div>
             </div>
             <div className="flex gap-3 p-5 border-t border-gray-700">

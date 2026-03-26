@@ -47,6 +47,7 @@ import InvestorLogin from './pages/InvestorLogin'
 import InvestorDashboard from './pages/InvestorDashboard'
 import AdminInvestorAccess from './pages/AdminInvestorAccess'
 import AdminMarginAlerts from './pages/AdminMarginAlerts'
+import SubAdminLogin from './pages/SubAdminLogin'
 
 // Website pages (website_fx)
 import WebsiteHome from './website_fx/src/pages/Home'
@@ -100,6 +101,7 @@ function App() {
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/support" element={<SupportPage />} />
         <Route path="/instructions" element={<InstructionsPage />} />
+        <Route path="/sub-admin" element={<SubAdminLogin />} />
         <Route path="/admin" element={<AdminLogin />} />
         <Route path="/admin/dashboard" element={<AdminOverview />} />
         <Route path="/admin/users" element={<AdminUserManagement />} />

@@ -32,6 +32,15 @@ import {
 } from 'lucide-react'
 import logoImage from '../assets/logo.png'
 import { useTheme } from '../context/ThemeContext'
+import { canAccessAdminPath } from '../utils/adminAccess'
+
+function readAdminUser() {
+  try {
+    return JSON.parse(localStorage.getItem('adminUser') || 'null')
+  } catch {
+    return null
+  }
+}
 
 const AdminLayout = ({ children, title, subtitle }) => {
   const navigate = useNavigate()
@@ -41,7 +50,7 @@ const AdminLayout = ({ children, title, subtitle }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [expandedSections, setExpandedSections] = useState({})
 
-  const menuItems = [
+  const allMenuItems = [
     { name: 'Overview Dashboard', icon: LayoutDashboard, path: '/admin/dashboard' },
     { name: 'User Management', icon: Users, path: '/admin/users' },
     { name: 'Trade Management', icon: TrendingUp, path: '/admin/trades' },
@@ -50,6 +59,7 @@ const AdminLayout = ({ children, title, subtitle }) => {
     { name: 'Bank Settings', icon: Building2, path: '/admin/bank-settings' },
     { name: 'IB Management', icon: UserCog, path: '/admin/ib-management' },
     { name: 'Forex Charges', icon: DollarSign, path: '/admin/forex-charges' },
+    { name: 'Indian Charges', icon: IndianRupee, path: '/admin/indian-charges' },
     { name: 'Earnings Report', icon: TrendingUp, path: '/admin/earnings' },
     { name: 'Copy Trade Management', icon: Copy, path: '/admin/copy-trade' },
     { name: 'Prop Firm Challenges', icon: Trophy, path: '/admin/prop-firm' },
@@ -65,6 +75,9 @@ const AdminLayout = ({ children, title, subtitle }) => {
     { name: 'Technical Analysis', icon: LineChart, path: '/admin/technical-analysis' },
   ]
 
+  const adminUser = readAdminUser()
+  const menuItems = allMenuItems.filter((item) => canAccessAdminPath(item.path, adminUser))
+
   // Check if user is in investor mode (uses sessionStorage - tab specific)
   // Admin uses localStorage, Investor uses sessionStorage
   const adminToken = localStorage.getItem('adminToken')
@@ -74,33 +87,49 @@ const AdminLayout = ({ children, title, subtitle }) => {
   useEffect(() => {
     const token = localStorage.getItem('adminToken')
     const investorMode = sessionStorage.getItem('investorMode')
-    
-  
+
     if (!token && !investorMode) {
       navigate('/admin')
     }
   }, [navigate])
 
+  useEffect(() => {
+    if (isInvestorMode) return
+    const token = localStorage.getItem('adminToken')
+    if (!token) return
+    const user = readAdminUser()
+    if (!canAccessAdminPath(location.pathname, user)) {
+      toast.error('You do not have permission to access this section')
+      navigate('/admin/dashboard', { replace: true })
+    }
+  }, [location.pathname, navigate, isInvestorMode])
+
   const handleLogout = () => {
-    // Redirect based on who was logged in
     const wasInvestor = isInvestorMode
-    
-    // Clear admin data (localStorage)
+    let subAdminLogout = false
+    if (!wasInvestor) {
+      try {
+        const u = JSON.parse(localStorage.getItem('adminUser') || 'null')
+        if (u?.role === 'ADMIN') subAdminLogout = true
+      } catch {
+        /* ignore */
+      }
+    }
+
     localStorage.removeItem('adminToken')
     localStorage.removeItem('adminUser')
-    
-    // Clear investor data (sessionStorage - tab specific)
+
     sessionStorage.removeItem('investorMode')
     sessionStorage.removeItem('investorAccessType')
     sessionStorage.removeItem('investorAccount')
     sessionStorage.removeItem('investorAccountId')
-    
+
     toast.success('Logged out successfully!')
-    
+
     if (wasInvestor) {
       navigate('/investor/login')
     } else {
-      navigate('/admin')
+      navigate(subAdminLogout ? '/sub-admin' : '/admin')
     }
   }
 

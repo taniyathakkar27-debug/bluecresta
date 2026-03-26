@@ -10,12 +10,35 @@ const router = express.Router()
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
 
+const SUB_ADMIN_PERMISSION_KEYS = [
+  'canManageUsers', 'canCreateUsers', 'canDeleteUsers', 'canViewUsers',
+  'canManageTrades', 'canCloseTrades', 'canModifyTrades',
+  'canManageAccounts', 'canCreateAccounts', 'canDeleteAccounts', 'canModifyLeverage',
+  'canManageDeposits', 'canApproveDeposits', 'canManageWithdrawals', 'canApproveWithdrawals',
+  'canManageKYC', 'canApproveKYC',
+  'canManageIB', 'canApproveIB',
+  'canManageCopyTrading', 'canApproveMasters',
+  'canManageSymbols', 'canManageGroups', 'canManageSettings', 'canManageTheme',
+  'canViewReports', 'canExportReports',
+]
+
+function normalizeSubAdminPermissions(input) {
+  const src = input && typeof input === 'object' ? input : {}
+  const out = {}
+  for (const key of SUB_ADMIN_PERMISSION_KEYS) {
+    out[key] = src[key] === true
+  }
+  out.canManageAdmins = false
+  out.canFundAdmins = false
+  return out
+}
+
 // ==================== ADMIN AUTH ====================
 
 // POST /api/admin-mgmt/login - Admin login
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body
+    const { email, password, portal } = req.body
 
     const admin = await Admin.findOne({ email: email.toLowerCase() })
     if (!admin) {
@@ -29,6 +52,28 @@ router.post('/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, admin.password)
     if (!isMatch) {
       return res.status(401).json({ message: 'Invalid credentials' })
+    }
+
+    // portal: 'super' = main /admin (super admin only); 'sub' = /sub-admin (sub-admins only)
+    if (portal === 'sub') {
+      if (admin.role === 'SUPER_ADMIN') {
+        return res.status(403).json({
+          message: 'Super admin must use the main admin login (/admin).'
+        })
+      }
+      if (admin.role !== 'ADMIN') {
+        return res.status(403).json({ message: 'Access denied.' })
+      }
+    }
+    if (portal === 'super') {
+      if (admin.role === 'ADMIN') {
+        return res.status(403).json({
+          message: 'Please sign in at the sub-admin portal (/sub-admin).'
+        })
+      }
+      if (admin.role !== 'SUPER_ADMIN') {
+        return res.status(403).json({ message: 'Access denied.' })
+      }
     }
 
     // Update last login
@@ -221,7 +266,7 @@ router.post('/admins', async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    // Create admin
+    // Create admin — only permissions explicitly set true by super admin (no schema defaults filling gaps)
     const admin = new Admin({
       email: email.toLowerCase(),
       password: hashedPassword,
@@ -231,7 +276,7 @@ router.post('/admins', async (req, res) => {
       urlSlug: urlSlug.toLowerCase(),
       brandName: brandName || firstName + "'s Trading",
       role: 'ADMIN',
-      permissions: permissions || {}
+      permissions: normalizeSubAdminPermissions(permissions)
     })
 
     await admin.save()
@@ -283,7 +328,9 @@ router.put('/admins/:id', async (req, res) => {
     if (lastName) admin.lastName = lastName
     if (phone !== undefined) admin.phone = phone
     if (brandName) admin.brandName = brandName
-    if (permissions) admin.permissions = { ...admin.permissions, ...permissions }
+    if (permissions) {
+      admin.permissions = normalizeSubAdminPermissions({ ...admin.permissions, ...permissions })
+    }
     if (status) admin.status = status
 
     await admin.save()
@@ -317,7 +364,7 @@ router.put('/admins/:id/permissions', async (req, res) => {
       return res.status(404).json({ message: 'Admin not found' })
     }
 
-    admin.permissions = { ...admin.permissions, ...permissions }
+    admin.permissions = normalizeSubAdminPermissions({ ...admin.permissions, ...permissions })
     await admin.save()
 
     res.json({
