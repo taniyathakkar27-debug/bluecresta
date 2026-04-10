@@ -1850,7 +1850,7 @@ const MobileTradingApp = () => {
               <div className="flex justify-between px-4 py-2">
                 <span className="text-gray-400 text-sm">Commission</span>
                 <span className="text-red-500 text-sm">
-                  -{tradeHistory.reduce((sum, t) => sum + (t.commission || 0), 0).toFixed(2)}
+                  -{tradeHistory.reduce((sum, t) => sum + (t.commission || 0) + (t.spread || 0), 0).toFixed(2)}
                 </span>
               </div>
             </>

@@ -515,10 +515,9 @@ const OrderBook = () => {
       .filter(t => t.status === 'CLOSED' || t.closePrice)
       .reduce((sum, t) => sum + (t.swap || 0), 0)
     
-    // Total Commission
+    // Total Commission (sum commission + spread from ALL items, matching "Charges" shown per trade)
     const totalCommission = filtered
-      .filter(t => t.status === 'CLOSED' || t.closePrice)
-      .reduce((sum, t) => sum + (t.commission || 0), 0)
+      .reduce((sum, t) => sum + (t.commission || 0) + (t.spread || 0), 0)
     
     // Current Balance (sum of all selected accounts)
     const selectedAccounts = selectedAccount === 'all' 
