@@ -314,9 +314,12 @@ class InfowayService {
 
   connectForex() {
     return new Promise((resolve, reject) => {
+      let resolved = false
+      
       this.forexWs = new WebSocket(WS_FOREX_URL)
       
       this.forexWs.on('open', () => {
+        resolved = true
         console.log('[Infoway] Forex WebSocket connected')
         // Subscribe to forex, metals, and commodities
         const allForexSymbols = [...FOREX_SYMBOLS, ...METALS_SYMBOLS, ...COMMODITIES_SYMBOLS]
@@ -325,34 +328,63 @@ class InfowayService {
       })
 
       this.forexWs.on('message', (data) => this.handleMessage(data))
-      this.forexWs.on('error', (err) => console.error('[Infoway] Forex WS error:', err.message))
+      this.forexWs.on('error', (err) => {
+        console.error('[Infoway] Forex WS error:', err.message)
+        if (!resolved) {
+          resolved = true
+          reject(new Error('Forex connection failed: ' + err.message))
+        }
+      })
       this.forexWs.on('close', () => {
-        console.log('[Infoway] Forex WS closed, reconnecting...')
-        setTimeout(() => this.connectForex(), 5000)
+        if (resolved && this.isConnected) {
+          console.log('[Infoway] Forex WS closed, reconnecting...')
+          setTimeout(() => this.connectForex().catch(() => {}), 5000)
+        }
       })
 
-      setTimeout(() => reject(new Error('Forex connection timeout')), 10000)
+      setTimeout(() => {
+        if (!resolved) {
+          resolved = true
+          reject(new Error('Forex connection timeout'))
+        }
+      }, 10000)
     })
   }
 
   connectCrypto() {
     return new Promise((resolve, reject) => {
+      let resolved = false
+      
       this.cryptoWs = new WebSocket(WS_CRYPTO_URL)
       
       this.cryptoWs.on('open', () => {
+        resolved = true
         console.log('[Infoway] Crypto WebSocket connected')
         this.subscribeToDepth(this.cryptoWs, CRYPTO_SYMBOLS.map(toInfowaySymbol))
         resolve()
       })
 
       this.cryptoWs.on('message', (data) => this.handleMessage(data))
-      this.cryptoWs.on('error', (err) => console.error('[Infoway] Crypto WS error:', err.message))
+      this.cryptoWs.on('error', (err) => {
+        console.error('[Infoway] Crypto WS error:', err.message)
+        if (!resolved) {
+          resolved = true
+          reject(new Error('Crypto connection failed: ' + err.message))
+        }
+      })
       this.cryptoWs.on('close', () => {
-        console.log('[Infoway] Crypto WS closed, reconnecting...')
-        setTimeout(() => this.connectCrypto(), 5000)
+        if (resolved && this.isConnected) {
+          console.log('[Infoway] Crypto WS closed, reconnecting...')
+          setTimeout(() => this.connectCrypto().catch(() => {}), 5000)
+        }
       })
 
-      setTimeout(() => reject(new Error('Crypto connection timeout')), 10000)
+      setTimeout(() => {
+        if (!resolved) {
+          resolved = true
+          reject(new Error('Crypto connection timeout'))
+        }
+      }, 10000)
     })
   }
 

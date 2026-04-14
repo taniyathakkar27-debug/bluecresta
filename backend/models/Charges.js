@@ -164,7 +164,7 @@ chargesSchema.statics.getChargesForTrade = async function(userId, symbol, segmen
         existing.commissionOnSell = charge.commissionOnSell
         existing.commissionOnClose = charge.commissionOnClose
       }
-      if (charge.spreadValue > 0 && !existing.spreadValue) {
+      if (charge.spreadValue !== undefined && charge.spreadValue !== null && existing.spreadValue === undefined) {
         existing.spreadValue = charge.spreadValue
         existing.spreadType = charge.spreadType
       }
@@ -196,17 +196,19 @@ chargesSchema.statics.getChargesForTrade = async function(userId, symbol, segmen
     commissionOnClose: false,
     swapLong: 0,
     swapShort: 0,
-    swapType: 'POINTS'
+    swapType: 'POINTS',
+    spreadExplicitlySet: false // Track if spread was explicitly set (even to 0)
   }
   
   // Apply charges from least specific to most specific (so most specific overwrites)
   for (let i = applicableCharges.length - 1; i >= 0; i--) {
     const charge = applicableCharges[i]
     
-    // Only overwrite if the charge has a non-zero/non-default value
-    if (charge.spreadValue > 0) {
+    // Allow spread to be set to 0 explicitly - check if spreadValue exists in charge
+    if (charge.spreadValue !== undefined && charge.spreadValue !== null) {
       result.spreadValue = charge.spreadValue
       result.spreadType = charge.spreadType
+      result.spreadExplicitlySet = true
     }
     if (charge.commissionValue > 0) {
       result.commissionValue = charge.commissionValue

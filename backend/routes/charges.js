@@ -40,15 +40,15 @@ router.get('/spreads', async (req, res) => {
     for (const symbol of symbols) {
       const seg = resolveTradeSegment(symbol)
       const merged = await Charges.getChargesForTrade(userId, symbol, seg, atid, allCharges)
-      let sv = merged.spreadValue > 0 ? merged.spreadValue : 0
+      let sv = merged.spreadValue
       const st = merged.spreadType || 'FIXED'
-      if (!sv && minSpreadFallback > 0) sv = minSpreadFallback
-      if (sv > 0) {
-        spreadMap[normInstrumentKey(symbol)] = {
-          spread: sv,
-          spreadType: st,
-          level: 'RESOLVED',
-        }
+      // Only use fallback if spread was NOT explicitly set (allows 0 spread)
+      if (!merged.spreadExplicitlySet && sv === 0 && minSpreadFallback > 0) sv = minSpreadFallback
+      // Include spread in map even if 0 (explicitly set)
+      spreadMap[normInstrumentKey(symbol)] = {
+        spread: sv,
+        spreadType: st,
+        level: 'RESOLVED',
       }
     }
 

@@ -485,8 +485,8 @@ class TradeEngine {
     
 
     // Fallback to AccountType's spread/commission if no charges found
-
-    if (charges.spreadValue === 0 && account.accountTypeId?.minSpread > 0) {
+    // Only use fallback if spread was NOT explicitly set (allows 0 spread)
+    if (!charges.spreadExplicitlySet && charges.spreadValue === 0 && account.accountTypeId?.minSpread > 0) {
 
       charges.spreadValue = account.accountTypeId.minSpread
 

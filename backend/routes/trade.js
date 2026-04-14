@@ -647,7 +647,7 @@ router.get('/pending/:tradingAccountId', async (req, res) => {
 router.get('/history/:tradingAccountId', async (req, res) => {
   try {
     const { tradingAccountId } = req.params
-    const { limit = 50, offset = 0 } = req.query
+    const { limit = 100, offset = 0 } = req.query
 
     const trades = await Trade.find({ 
       tradingAccountId, 

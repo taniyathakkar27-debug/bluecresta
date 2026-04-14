@@ -111,6 +111,12 @@ const OrderBook = () => {
 
   const itemsPerPage = 20
 
+  // Pagination state for history
+  const [historyOffset, setHistoryOffset] = useState(0)
+  const [historyTotal, setHistoryTotal] = useState(0)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const historyLimit = 100
+
 
 
   // Get user - for investor mode, use investor account's user data
@@ -328,6 +334,7 @@ const OrderBook = () => {
   const fetchAllTrades = async () => {
 
     setLoading(true)
+    setHistoryTotal(0) // Reset total for fresh fetch
 
     try {
 
@@ -344,6 +351,7 @@ const OrderBook = () => {
       let allClosed = []
 
       let allPending = []
+      let totalHistoryCount = 0
 
 
 
@@ -363,16 +371,18 @@ const OrderBook = () => {
 
 
 
-        // Fetch closed trades (history)
-
-        const historyRes = await fetch(`${API_URL}/trade/history/${account._id}`)
+        // Fetch closed trades (history) with pagination
+        const historyRes = await fetch(`${API_URL}/trade/history/${account._id}?limit=${historyLimit}&offset=0`)
 
         const historyData = await historyRes.json()
 
         if (historyData.success && historyData.trades) {
 
           allClosed = [...allClosed, ...historyData.trades.map(t => ({ ...t, accountName: account.accountId }))]
-
+          // Track total for pagination
+          if (historyData.total) {
+            totalHistoryCount += historyData.total
+          }
         }
 
 
@@ -420,6 +430,8 @@ const OrderBook = () => {
       setClosedTrades(allClosed.sort((a, b) => new Date(b.closedAt || b.createdAt) - new Date(a.closedAt || a.createdAt)))
 
       setPendingOrders(allPending)
+      setHistoryOffset(historyLimit) // Set offset for next load
+      setHistoryTotal(totalHistoryCount) // Set total count for Load More button
 
     } catch (error) {
 
@@ -429,6 +441,45 @@ const OrderBook = () => {
 
     setLoading(false)
 
+  }
+
+  // Load more history trades
+  const loadMoreHistory = async () => {
+    if (loadingMore) return
+    setLoadingMore(true)
+    
+    try {
+      const accountsToFetch = selectedAccount === 'all' 
+        ? accounts 
+        : accounts.filter(a => a._id === selectedAccount)
+
+      let moreTrades = []
+
+      for (const account of accountsToFetch) {
+        const historyRes = await fetch(`${API_URL}/trade/history/${account._id}?limit=${historyLimit}&offset=${historyOffset}`)
+        const historyData = await historyRes.json()
+
+        if (historyData.success && historyData.trades) {
+          moreTrades = [...moreTrades, ...historyData.trades.map(t => ({ ...t, accountName: account.accountId }))]
+        }
+      }
+
+      if (moreTrades.length > 0) {
+        setClosedTrades(prev => {
+          const combined = [...prev, ...moreTrades]
+          // Remove duplicates by _id
+          const unique = combined.filter((trade, index, self) => 
+            index === self.findIndex(t => t._id === trade._id)
+          )
+          return unique.sort((a, b) => new Date(b.closedAt || b.createdAt) - new Date(a.closedAt || a.createdAt))
+        })
+        setHistoryOffset(prev => prev + historyLimit)
+      }
+    } catch (error) {
+      console.error('Error loading more history:', error)
+    }
+    
+    setLoadingMore(false)
   }
 
 
@@ -1574,6 +1625,28 @@ const OrderBook = () => {
 
                           </div>
 
+                        )}
+
+                        {/* Load More Button */}
+                        {closedTrades.length > 0 && historyTotal > closedTrades.length && (
+                          <div className="flex justify-center p-4 border-t border-gray-800">
+                            <button
+                              onClick={loadMoreHistory}
+                              disabled={loadingMore}
+                              className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-lg text-sm font-medium hover:from-blue-700 hover:to-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                              {loadingMore ? (
+                                <>
+                                  <RefreshCw size={16} className="animate-spin" />
+                                  Loading...
+                                </>
+                              ) : (
+                                <>
+                                  Load More ({closedTrades.length} of {historyTotal})
+                                </>
+                              )}
+                            </button>
+                          </div>
                         )}
 
                       </>
