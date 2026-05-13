@@ -723,6 +723,17 @@ const MobileTradingApp = () => {
 
   const handleLogout = () => {
 
+    if (isInvestorMode) {
+      sessionStorage.removeItem('investorMode')
+      sessionStorage.removeItem('investorAccessType')
+      sessionStorage.removeItem('investorAccount')
+      sessionStorage.removeItem('investorAccountId')
+      sessionStorage.removeItem('investorUserId')
+      toast.success('Logged out successfully!')
+      navigate('/investor/login')
+      return
+    }
+
     localStorage.removeItem('token')
 
     localStorage.removeItem('user')
