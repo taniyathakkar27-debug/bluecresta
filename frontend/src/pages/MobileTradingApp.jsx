@@ -40,7 +40,7 @@ const MobileTradingApp = () => {
 
   const [searchParams] = useSearchParams()
 
-  const { isInvestorMode } = useInvestorMode()
+  const { isInvestorMode, investorAccount, investorUser } = useInvestorMode()
 
   const accountIdFromUrl = searchParams.get('account')
 
@@ -213,6 +213,18 @@ const MobileTradingApp = () => {
   useEffect(() => {
 
     const init = async () => {
+      if (isInvestorMode) {
+        if (!investorUser?._id) {
+          navigate('/investor/login')
+          return
+        }
+        setUser(investorUser)
+        fetchInstruments()
+        fetchAccounts(investorUser._id)
+        fetchLivePrices()
+        return
+      }
+
       const userData = JSON.parse(localStorage.getItem('user') || '{}')
       const token = localStorage.getItem('token')
 
@@ -269,6 +281,10 @@ const MobileTradingApp = () => {
 
 
   const requestTradeTab = async () => {
+    if (isInvestorMode) {
+      toast.error('Investor access is read-only.')
+      return
+    }
     const token = localStorage.getItem('token')
     const stored = JSON.parse(localStorage.getItem('user') || '{}')
     if (!token || !stored._id) {
