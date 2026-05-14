@@ -282,14 +282,28 @@ const FALLBACK_PRICES = {
   'GMXUSD': { bid: 28.00, ask: 28.10 }
 }
 
+const STALE_MS = 60_000
+const WATCHDOG_INTERVAL_MS = 15_000
+const HEARTBEAT_INTERVAL_MS = 30_000
+const CONNECT_TIMEOUT_MS = 15_000
+const RECONNECT_BASE_DELAY_MS = 2_000
+const RECONNECT_MAX_DELAY_MS = 30_000
+
 class InfowayService {
   constructor() {
     this.forexWs = null
     this.cryptoWs = null
-    this.isConnected = false
     this.prices = new Map()
     this.subscribers = new Set()
-    this.reconnectInterval = null
+    this.heartbeatInterval = null
+    this.watchdogInterval = null
+    this.forexLastMessageAt = 0
+    this.cryptoLastMessageAt = 0
+    this.forexReconnectAttempts = 0
+    this.cryptoReconnectAttempts = 0
+    this.forexReconnectTimer = null
+    this.cryptoReconnectTimer = null
+    this.shutdown = false
   }
 
   async connect() {
@@ -297,95 +311,149 @@ class InfowayService {
       console.error('[Infoway] No INFOWAY_API_KEY configured')
       return false
     }
-
-    try {
-      console.log('[Infoway] Connecting to WebSocket...')
-      await this.connectForex()
-      await this.connectCrypto()
-      this.startHeartbeat()
-      this.isConnected = true
-      console.log('[Infoway] Connected successfully!')
-      return true
-    } catch (error) {
-      console.error('[Infoway] Connection error:', error.message)
-      return false
-    }
+    this.shutdown = false
+    console.log('[Infoway] Starting service...')
+    // Kick off both sockets. If either fails, the close handler and watchdog will retry forever.
+    await Promise.allSettled([this.connectForex(), this.connectCrypto()])
+    this.startHeartbeat()
+    this.startWatchdog()
+    console.log('[Infoway] Service started (self-healing enabled)')
+    return true
   }
 
   connectForex() {
-    return new Promise((resolve, reject) => {
-      let resolved = false
-      
-      this.forexWs = new WebSocket(WS_FOREX_URL)
-      
-      this.forexWs.on('open', () => {
-        resolved = true
+    return new Promise((resolve) => {
+      if (this.shutdown) return resolve()
+      let settled = false
+      const done = () => { if (!settled) { settled = true; resolve() } }
+
+      let ws
+      try {
+        ws = new WebSocket(WS_FOREX_URL)
+      } catch (e) {
+        console.error('[Infoway] Forex WS construct error:', e.message)
+        this.scheduleForexReconnect()
+        return done()
+      }
+      this.forexWs = ws
+
+      ws.on('open', () => {
+        this.forexReconnectAttempts = 0
+        this.forexLastMessageAt = Date.now()
         console.log('[Infoway] Forex WebSocket connected')
-        // Subscribe to forex, metals, and commodities
-        const allForexSymbols = [...FOREX_SYMBOLS, ...METALS_SYMBOLS, ...COMMODITIES_SYMBOLS]
-        this.subscribeToDepth(this.forexWs, allForexSymbols)
-        resolve()
+        try {
+          const allForexSymbols = [...FOREX_SYMBOLS, ...METALS_SYMBOLS, ...COMMODITIES_SYMBOLS]
+          this.subscribeToDepth(ws, allForexSymbols)
+        } catch (e) {
+          console.error('[Infoway] Forex subscribe error:', e.message)
+        }
+        done()
       })
 
-      this.forexWs.on('message', (data) => this.handleMessage(data))
-      this.forexWs.on('error', (err) => {
-        console.error('[Infoway] Forex WS error:', err.message)
-        if (!resolved) {
-          resolved = true
-          reject(new Error('Forex connection failed: ' + err.message))
-        }
+      ws.on('message', (data) => {
+        this.forexLastMessageAt = Date.now()
+        this.handleMessage(data)
       })
-      this.forexWs.on('close', () => {
-        if (resolved && this.isConnected) {
-          console.log('[Infoway] Forex WS closed, reconnecting...')
-          setTimeout(() => this.connectForex().catch(() => {}), 5000)
-        }
+
+      ws.on('error', (err) => {
+        console.error('[Infoway] Forex WS error:', err.message)
+      })
+
+      ws.on('close', (code, reason) => {
+        console.warn(`[Infoway] Forex WS closed (code=${code}, reason=${reason?.toString() || 'n/a'})`)
+        if (this.forexWs === ws) this.forexWs = null
+        done()
+        this.scheduleForexReconnect()
       })
 
       setTimeout(() => {
-        if (!resolved) {
-          resolved = true
-          reject(new Error('Forex connection timeout'))
+        if (ws.readyState !== WebSocket.OPEN && ws.readyState !== WebSocket.CLOSED) {
+          console.error('[Infoway] Forex connect timeout, terminating socket')
+          try { ws.terminate() } catch (e) {}
         }
-      }, 10000)
+        done()
+      }, CONNECT_TIMEOUT_MS)
     })
   }
 
   connectCrypto() {
-    return new Promise((resolve, reject) => {
-      let resolved = false
-      
-      this.cryptoWs = new WebSocket(WS_CRYPTO_URL)
-      
-      this.cryptoWs.on('open', () => {
-        resolved = true
+    return new Promise((resolve) => {
+      if (this.shutdown) return resolve()
+      let settled = false
+      const done = () => { if (!settled) { settled = true; resolve() } }
+
+      let ws
+      try {
+        ws = new WebSocket(WS_CRYPTO_URL)
+      } catch (e) {
+        console.error('[Infoway] Crypto WS construct error:', e.message)
+        this.scheduleCryptoReconnect()
+        return done()
+      }
+      this.cryptoWs = ws
+
+      ws.on('open', () => {
+        this.cryptoReconnectAttempts = 0
+        this.cryptoLastMessageAt = Date.now()
         console.log('[Infoway] Crypto WebSocket connected')
-        this.subscribeToDepth(this.cryptoWs, CRYPTO_SYMBOLS.map(toInfowaySymbol))
-        resolve()
+        try {
+          this.subscribeToDepth(ws, CRYPTO_SYMBOLS.map(toInfowaySymbol))
+        } catch (e) {
+          console.error('[Infoway] Crypto subscribe error:', e.message)
+        }
+        done()
       })
 
-      this.cryptoWs.on('message', (data) => this.handleMessage(data))
-      this.cryptoWs.on('error', (err) => {
-        console.error('[Infoway] Crypto WS error:', err.message)
-        if (!resolved) {
-          resolved = true
-          reject(new Error('Crypto connection failed: ' + err.message))
-        }
+      ws.on('message', (data) => {
+        this.cryptoLastMessageAt = Date.now()
+        this.handleMessage(data)
       })
-      this.cryptoWs.on('close', () => {
-        if (resolved && this.isConnected) {
-          console.log('[Infoway] Crypto WS closed, reconnecting...')
-          setTimeout(() => this.connectCrypto().catch(() => {}), 5000)
-        }
+
+      ws.on('error', (err) => {
+        console.error('[Infoway] Crypto WS error:', err.message)
+      })
+
+      ws.on('close', (code, reason) => {
+        console.warn(`[Infoway] Crypto WS closed (code=${code}, reason=${reason?.toString() || 'n/a'})`)
+        if (this.cryptoWs === ws) this.cryptoWs = null
+        done()
+        this.scheduleCryptoReconnect()
       })
 
       setTimeout(() => {
-        if (!resolved) {
-          resolved = true
-          reject(new Error('Crypto connection timeout'))
+        if (ws.readyState !== WebSocket.OPEN && ws.readyState !== WebSocket.CLOSED) {
+          console.error('[Infoway] Crypto connect timeout, terminating socket')
+          try { ws.terminate() } catch (e) {}
         }
-      }, 10000)
+        done()
+      }, CONNECT_TIMEOUT_MS)
     })
+  }
+
+  scheduleForexReconnect() {
+    if (this.shutdown || this.forexReconnectTimer) return
+    this.forexReconnectAttempts++
+    const expStep = Math.min(this.forexReconnectAttempts - 1, 4)
+    const delay = Math.min(RECONNECT_MAX_DELAY_MS, RECONNECT_BASE_DELAY_MS * Math.pow(2, expStep))
+    console.log(`[Infoway] Forex reconnect attempt #${this.forexReconnectAttempts} in ${delay}ms`)
+    this.forexReconnectTimer = setTimeout(() => {
+      this.forexReconnectTimer = null
+      if (this.shutdown) return
+      this.connectForex().catch((e) => console.error('[Infoway] Forex reconnect error:', e?.message))
+    }, delay)
+  }
+
+  scheduleCryptoReconnect() {
+    if (this.shutdown || this.cryptoReconnectTimer) return
+    this.cryptoReconnectAttempts++
+    const expStep = Math.min(this.cryptoReconnectAttempts - 1, 4)
+    const delay = Math.min(RECONNECT_MAX_DELAY_MS, RECONNECT_BASE_DELAY_MS * Math.pow(2, expStep))
+    console.log(`[Infoway] Crypto reconnect attempt #${this.cryptoReconnectAttempts} in ${delay}ms`)
+    this.cryptoReconnectTimer = setTimeout(() => {
+      this.cryptoReconnectTimer = null
+      if (this.shutdown) return
+      this.connectCrypto().catch((e) => console.error('[Infoway] Crypto reconnect error:', e?.message))
+    }, delay)
   }
 
   subscribeToDepth(ws, symbols) {
@@ -401,27 +469,19 @@ class InfowayService {
   handleMessage(data) {
     try {
       const msg = JSON.parse(data.toString())
-      
-      // Depth push (code 10005) contains bid/ask
       if (msg.code === 10005 && msg.data) {
         const infowaySymbol = msg.data.s
         const symbol = fromInfowaySymbol(infowaySymbol)
-        
-        // a = ask side, b = bid side
-        // a[0] = ask prices array, b[0] = bid prices array
         const askPrice = msg.data.a?.[0]?.[0]
         const bidPrice = msg.data.b?.[0]?.[0]
-        
+
         if (bidPrice && askPrice) {
           const priceData = {
             bid: parseFloat(bidPrice),
             ask: parseFloat(askPrice),
             time: msg.data.t || Date.now()
           }
-          
           this.prices.set(symbol, priceData)
-          
-          // Notify subscribers
           this.subscribers.forEach(callback => {
             try { callback(symbol, priceData) } catch (e) {}
           })
@@ -433,15 +493,67 @@ class InfowayService {
   }
 
   startHeartbeat() {
-    setInterval(() => {
+    if (this.heartbeatInterval) clearInterval(this.heartbeatInterval)
+    this.heartbeatInterval = setInterval(() => {
       const ping = { code: 10010, trace: Date.now().toString() }
+      try {
+        if (this.forexWs?.readyState === WebSocket.OPEN) {
+          this.forexWs.send(JSON.stringify(ping))
+        }
+      } catch (e) {
+        console.error('[Infoway] Forex heartbeat send error:', e.message)
+      }
+      try {
+        if (this.cryptoWs?.readyState === WebSocket.OPEN) {
+          this.cryptoWs.send(JSON.stringify(ping))
+        }
+      } catch (e) {
+        console.error('[Infoway] Crypto heartbeat send error:', e.message)
+      }
+    }, HEARTBEAT_INTERVAL_MS)
+  }
+
+  // Force-terminate sockets that have stopped delivering data, and re-attempt connection if missing.
+  // Without this, a TCP-alive-but-silent socket would never trigger 'close', so reconnect would never run.
+  startWatchdog() {
+    if (this.watchdogInterval) clearInterval(this.watchdogInterval)
+    this.watchdogInterval = setInterval(() => {
+      if (this.shutdown) return
+      const now = Date.now()
+
+      // Forex
       if (this.forexWs?.readyState === WebSocket.OPEN) {
-        this.forexWs.send(JSON.stringify(ping))
+        if (this.forexLastMessageAt && (now - this.forexLastMessageAt) > STALE_MS) {
+          const ageSec = Math.round((now - this.forexLastMessageAt) / 1000)
+          console.warn(`[Infoway] Forex WS stale (${ageSec}s no data), terminating to force reconnect`)
+          try { this.forexWs.terminate() } catch (e) {}
+        }
+      } else if (!this.forexWs && !this.forexReconnectTimer) {
+        console.log('[Infoway] Watchdog: forex WS missing, scheduling reconnect')
+        this.scheduleForexReconnect()
       }
+
+      // Crypto
       if (this.cryptoWs?.readyState === WebSocket.OPEN) {
-        this.cryptoWs.send(JSON.stringify(ping))
+        if (this.cryptoLastMessageAt && (now - this.cryptoLastMessageAt) > STALE_MS) {
+          const ageSec = Math.round((now - this.cryptoLastMessageAt) / 1000)
+          console.warn(`[Infoway] Crypto WS stale (${ageSec}s no data), terminating to force reconnect`)
+          try { this.cryptoWs.terminate() } catch (e) {}
+        }
+      } else if (!this.cryptoWs && !this.cryptoReconnectTimer) {
+        console.log('[Infoway] Watchdog: crypto WS missing, scheduling reconnect')
+        this.scheduleCryptoReconnect()
       }
-    }, 30000)
+    }, WATCHDOG_INTERVAL_MS)
+  }
+
+  isHealthy() {
+    const now = Date.now()
+    const forexOk = this.forexWs?.readyState === WebSocket.OPEN &&
+      this.forexLastMessageAt && (now - this.forexLastMessageAt) < STALE_MS
+    const cryptoOk = this.cryptoWs?.readyState === WebSocket.OPEN &&
+      this.cryptoLastMessageAt && (now - this.cryptoLastMessageAt) < STALE_MS
+    return { forex: !!forexOk, crypto: !!cryptoOk }
   }
 
   getPrice(symbol) {
@@ -472,9 +584,13 @@ class InfowayService {
   isCrypto(symbol) { return CRYPTO_SYMBOLS.includes(symbol) }
 
   async disconnect() {
-    if (this.forexWs) this.forexWs.close()
-    if (this.cryptoWs) this.cryptoWs.close()
-    this.isConnected = false
+    this.shutdown = true
+    if (this.heartbeatInterval) { clearInterval(this.heartbeatInterval); this.heartbeatInterval = null }
+    if (this.watchdogInterval) { clearInterval(this.watchdogInterval); this.watchdogInterval = null }
+    if (this.forexReconnectTimer) { clearTimeout(this.forexReconnectTimer); this.forexReconnectTimer = null }
+    if (this.cryptoReconnectTimer) { clearTimeout(this.cryptoReconnectTimer); this.cryptoReconnectTimer = null }
+    try { this.forexWs?.close() } catch (e) {}
+    try { this.cryptoWs?.close() } catch (e) {}
   }
 }
 
