@@ -725,17 +725,25 @@ router.get('/summary/:tradingAccountId', async (req, res) => {
 
     // Calculate used margin from open trades
     const usedMargin = openTrades.reduce((sum, t) => sum + (t.marginUsed || 0), 0)
-    
-    // Calculate floating PnL from current prices
+
+    // Stale-feed guard: detect whether we can fully recompute the floating
+    // PnL with fresh prices. If any open trade has no fresh quote, mark the
+    // response as `staleFeed` so the client can freeze its previously
+    // displayed equity instead of slipping into a phantom loss.
+    const feedHealthy = infowayService.isFeedHealthy()
+    let staleFeed = !feedHealthy
     let floatingPnl = 0
     for (const trade of openTrades) {
       const priceData = currentPrices[trade.symbol]
-      if (priceData) {
+      const symbolFresh = infowayService.isPriceFresh(trade.symbol)
+      if (priceData && priceData.bid && priceData.ask && symbolFresh) {
         const currentPrice = trade.side === 'BUY' ? priceData.bid : priceData.ask
         const pnl = trade.side === 'BUY'
           ? (currentPrice - trade.openPrice) * trade.quantity * trade.contractSize
           : (trade.openPrice - currentPrice) * trade.quantity * trade.contractSize
         floatingPnl += pnl
+      } else {
+        staleFeed = true
       }
     }
 
@@ -755,7 +763,8 @@ router.get('/summary/:tradingAccountId', async (req, res) => {
         usedMargin: Math.round(usedMargin * 100) / 100,
         freeMargin: Math.round(freeMargin * 100) / 100,
         floatingPnl: Math.round(floatingPnl * 100) / 100,
-        marginLevel: Math.round(marginLevel * 100) / 100
+        marginLevel: Math.round(marginLevel * 100) / 100,
+        staleFeed
       },
       openTradesCount: openTrades.length
     })

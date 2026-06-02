@@ -479,7 +479,8 @@ class InfowayService {
           const priceData = {
             bid: parseFloat(bidPrice),
             ask: parseFloat(askPrice),
-            time: msg.data.t || Date.now()
+            time: msg.data.t || Date.now(),
+            receivedAt: Date.now()
           }
           this.prices.set(symbol, priceData)
           this.subscribers.forEach(callback => {
@@ -556,8 +557,32 @@ class InfowayService {
     return { forex: !!forexOk, crypto: !!cryptoOk }
   }
 
+  // True if at least one feed has delivered data recently.
+  // Used to gate background stop-out / SL-TP jobs so they don't act on stale prices.
+  isFeedHealthy() {
+    const h = this.isHealthy()
+    return h.forex || h.crypto
+  }
+
+  // Per-symbol freshness check. A symbol is "fresh" only if we've received an
+  // update for it within maxAgeMs. Falls back prices are NEVER fresh.
+  isPriceFresh(symbol, maxAgeMs = 15_000) {
+    const p = this.prices.get(symbol)
+    if (!p || !p.receivedAt) return false
+    return (Date.now() - p.receivedAt) < maxAgeMs
+  }
+
   getPrice(symbol) {
     return this.prices.get(symbol) || FALLBACK_PRICES[symbol] || null
+  }
+
+  // Returns a live, recently-received price, or null when stale/missing.
+  // Use this for any logic that could move money (stop-out, SL/TP, etc.).
+  getFreshPrice(symbol, maxAgeMs = 15_000) {
+    const p = this.prices.get(symbol)
+    if (!p || !p.receivedAt) return null
+    if ((Date.now() - p.receivedAt) >= maxAgeMs) return null
+    return p
   }
 
   getAllPrices() {

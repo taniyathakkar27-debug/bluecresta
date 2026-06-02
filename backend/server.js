@@ -258,25 +258,42 @@ setInterval(streamPrices, 2000)
 
 // This ensures trades are closed even if user closes browser
 
+// Guard: skip when the Infoway feed is unhealthy. Acting on stale prices can
+// false-trigger stop-outs and push accounts into loss during outages.
+
 setInterval(async () => {
 
   try {
 
     if (priceCache.size === 0) return // No prices yet
 
-    
+    if (!infowayService.isFeedHealthy()) {
+
+      // Feed is down or stale — freeze risk checks until live data resumes
+
+      return
+
+    }
+
+
 
     // Convert priceCache to object format expected by tradeEngine
+
+    // Only include symbols with fresh prices so per-trade stale guards work.
 
     const currentPrices = {}
 
     priceCache.forEach((data, symbol) => {
 
-      currentPrices[symbol] = { bid: data.bid, ask: data.ask }
+      if (infowayService.isPriceFresh(symbol)) {
+
+        currentPrices[symbol] = { bid: data.bid, ask: data.ask }
+
+      }
 
     })
 
-    
+
 
     const result = await tradeEngine.checkAllAccountsStopOut(currentPrices)
 
@@ -306,19 +323,35 @@ setInterval(async () => {
 
     if (priceCache.size === 0) return // No prices yet
 
-    
+    if (!infowayService.isFeedHealthy()) {
 
-    // Convert priceCache to object format expected by tradeEngine
+      // Feed is down or stale — don't trigger SL/TP off stale prices
+
+      return
+
+    }
+
+
+
+    // Convert priceCache to object format expected by tradeEngine.
+
+    // Only forward symbols with fresh prices; per-trade stale guards in the
+
+    // engine then skip any trade whose symbol has no fresh quote.
 
     const currentPrices = {}
 
     priceCache.forEach((data, symbol) => {
 
-      currentPrices[symbol] = { bid: data.bid, ask: data.ask }
+      if (infowayService.isPriceFresh(symbol)) {
+
+        currentPrices[symbol] = { bid: data.bid, ask: data.ask }
+
+      }
 
     })
 
-    
+
 
     // Check SL/TP for regular trades
 

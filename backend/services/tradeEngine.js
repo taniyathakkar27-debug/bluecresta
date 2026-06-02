@@ -998,6 +998,28 @@ class TradeEngine {
 
 
 
+    // Stale-feed guard: if ANY open trade lacks a fresh quote, we can't be sure
+
+    // whether the account is really under-margined. Skip stop-out until the
+
+    // feed delivers prices for every open symbol. This prevents stop-outs
+
+    // caused by a missing or stale price during a feed outage.
+
+    for (const trade of openTrades) {
+
+      const p = currentPrices[trade.symbol]
+
+      if (!p || !p.bid || !p.ask) {
+
+        return { stopOutTriggered: false, reason: 'STALE_FEED', symbol: trade.symbol }
+
+      }
+
+    }
+
+
+
     const settings = await TradeSettings.getSettings(account.accountTypeId?._id)
 
     const summary = await this.getAccountSummary(tradingAccountId, openTrades, currentPrices)

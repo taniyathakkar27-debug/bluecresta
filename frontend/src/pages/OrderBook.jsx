@@ -488,15 +488,27 @@ const OrderBook = () => {
 
     const prices = livePrices[trade.symbol]
 
-    if (!prices || !prices.bid) return 0
+    const symbolFresh = priceStreamService.isPriceFresh?.(trade.symbol)
 
-    
+
+
+    // Freeze on stale/missing feed: keep the trade's last computed PnL so an
+
+    // outage doesn't flip a winning position into a phantom loss.
+
+    if (!prices || !prices.bid || !prices.ask || !symbolFresh) {
+
+      return trade._lastPnl ?? 0
+
+    }
+
+
 
     const currentPrice = trade.side === 'BUY' ? prices.bid : prices.ask
 
-    if (!currentPrice) return 0
+    if (!currentPrice) return trade._lastPnl ?? 0
 
-    
+
 
     const contractSize = trade.contractSize || getContractSize(trade.symbol)
 
@@ -506,9 +518,13 @@ const OrderBook = () => {
 
       : (trade.openPrice - currentPrice) * trade.quantity * contractSize
 
-    
 
-    return pnl - (trade.commission || 0) - (trade.swap || 0)
+
+    const total = pnl - (trade.commission || 0) - (trade.swap || 0)
+
+    trade._lastPnl = total
+
+    return total
 
   }
 

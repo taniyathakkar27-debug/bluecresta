@@ -214,13 +214,25 @@ const MobileTradingApp = () => {
 
     const init = async () => {
       if (isInvestorMode) {
-        if (!investorUser?._id) {
+        if (!investorUser?._id || !investorAccount?._id) {
           navigate('/investor/login')
           return
         }
         setUser(investorUser)
+        // Investor was granted access to ONE specific account via investor password.
+        // Scope the dashboard to that account only — don't fetch all of the user's accounts.
+        // Normalize shape: investor-login returns accountType as a populated object,
+        // but /user/:userId returns accountTypeId. Rendering expects accountType to be
+        // a string (or undefined) — passing an object crashes React.
+        const normalizedAccount = {
+          ...investorAccount,
+          accountTypeId: investorAccount.accountType || investorAccount.accountTypeId,
+          accountType: investorAccount.accountType?.name || investorAccount.accountTypeId?.name || 'Standard',
+        }
+        setAccounts([normalizedAccount])
+        setSelectedAccount(normalizedAccount)
+        setLoading(false)
         fetchInstruments()
-        fetchAccounts(investorUser._id)
         fetchLivePrices()
         return
       }
@@ -1176,6 +1188,8 @@ const MobileTradingApp = () => {
   const moreMenuItems = [
 
     { name: 'Dashboard', icon: Home, path: '/dashboard', action: () => setActiveTab('home') },
+
+    { name: 'Orders', icon: FileText, path: '/orders' },
 
     { name: 'Wallet', icon: Wallet, path: '/wallet' },
 

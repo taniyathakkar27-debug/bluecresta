@@ -81,23 +81,31 @@ const InvestorDashboard = () => {
     toast.success('Logged out successfully')
   }
 
-  // Calculate floating PnL
+  // Calculate floating PnL. When the live feed is stale or missing prices for
+  // this symbol, return the last computed PnL so the displayed equity doesn't
+  // dip into a phantom loss during an outage.
   const calculateFloatingPnl = (trade) => {
     if (trade.status !== 'OPEN') return trade.realizedPnl || 0
     const prices = livePrices[trade.symbol]
-    if (!prices || !prices.bid) return 0
-    
+    const symbolFresh = priceStreamService.isPriceFresh?.(trade.symbol)
+
+    if (!prices || !prices.bid || !prices.ask || !symbolFresh) {
+      return trade._lastPnl ?? 0
+    }
+
     const currentPrice = trade.side === 'BUY' ? prices.bid : prices.ask
     const contractSize = trade.contractSize || 1
     let pnl = 0
-    
+
     if (trade.side === 'BUY') {
       pnl = (currentPrice - trade.openPrice) * trade.quantity * contractSize
     } else {
       pnl = (trade.openPrice - currentPrice) * trade.quantity * contractSize
     }
-    
-    return pnl - (trade.commission || 0) - (trade.swap || 0)
+
+    const total = pnl - (trade.commission || 0) - (trade.swap || 0)
+    trade._lastPnl = total
+    return total
   }
 
   const openTrades = trades.filter(t => t.status === 'OPEN')

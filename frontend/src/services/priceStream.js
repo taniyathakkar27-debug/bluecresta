@@ -8,10 +8,14 @@ class PriceStreamService {
   constructor() {
     this.socket = null
     this.prices = {}
+    // Per-symbol receive timestamps so consumers can detect stale prices.
+    this.lastUpdateAt = {}
     this.subscribers = new Map()
     this.isConnected = false
     this.reconnectAttempts = 0
     this.maxReconnectAttempts = 10
+    // A symbol is considered stale if no update has arrived within this window.
+    this.staleThresholdMs = 15_000
   }
 
   connect() {
@@ -35,12 +39,19 @@ class PriceStreamService {
 
     this.socket.on('priceStream', (data) => {
       const { prices, updated, timestamp } = data
-      
-      // Update local price cache
+
+      // Update local price cache and per-symbol receive timestamps
       if (prices) {
-        this.prices = { ...this.prices, ...prices }
+        const now = Date.now()
+        Object.keys(prices).forEach(symbol => {
+          const p = prices[symbol]
+          if (p && p.bid && p.ask) {
+            this.prices[symbol] = p
+            this.lastUpdateAt[symbol] = now
+          }
+        })
       }
-      
+
       // Notify all subscribers
       this.subscribers.forEach((callback, id) => {
         try {
@@ -99,6 +110,23 @@ class PriceStreamService {
 
   getAllPrices() {
     return this.prices
+  }
+
+  // A price is "fresh" only if we received a tick for it within the window
+  // AND the socket is connected. Use this everywhere PnL is recomputed so
+  // an outage doesn't flip an open trade into a phantom loss.
+  isPriceFresh(symbol) {
+    if (!this.isConnected) return false
+    const t = this.lastUpdateAt[symbol]
+    if (!t) return false
+    return (Date.now() - t) < this.staleThresholdMs
+  }
+
+  isFeedHealthy() {
+    if (!this.isConnected) return false
+    // Healthy if at least one symbol updated within the window.
+    const now = Date.now()
+    return Object.values(this.lastUpdateAt).some(t => (now - t) < this.staleThresholdMs)
   }
 
   // Calculate PnL for a trade using current prices
