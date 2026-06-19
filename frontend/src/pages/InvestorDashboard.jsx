@@ -22,6 +22,8 @@ const InvestorDashboard = () => {
   const [loading, setLoading] = useState(true)
   const [accessType, setAccessType] = useState('investor')
   const [livePrices, setLivePrices] = useState({})
+  const [historyPage, setHistoryPage] = useState(1)
+  const HISTORY_PAGE_SIZE = 10
 
   useEffect(() => {
     const storedAccessType = localStorage.getItem('investorAccessType')
@@ -110,6 +112,17 @@ const InvestorDashboard = () => {
 
   const openTrades = trades.filter(t => t.status === 'OPEN')
   const closedTrades = trades.filter(t => t.status === 'CLOSED')
+  // Mobile trade-history pagination
+  const historyTotalPages = Math.max(1, Math.ceil(closedTrades.length / HISTORY_PAGE_SIZE))
+  const paginatedClosedTrades = closedTrades.slice(
+    (historyPage - 1) * HISTORY_PAGE_SIZE,
+    historyPage * HISTORY_PAGE_SIZE
+  )
+
+  // Keep history page within valid bounds when the trade list changes
+  useEffect(() => {
+    if (historyPage > historyTotalPages) setHistoryPage(historyTotalPages)
+  }, [historyTotalPages, historyPage])
   const totalFloatingPnl = openTrades.reduce((sum, t) => sum + calculateFloatingPnl(t), 0)
   const totalRealizedPnl = closedTrades.reduce((sum, t) => sum + (t.realizedPnl || 0), 0)
   const equity = (account?.balance || 0) + totalFloatingPnl
@@ -365,7 +378,7 @@ const InvestorDashboard = () => {
             {closedTrades.length === 0 ? (
               <div className="py-8 text-center text-gray-500">No trade history</div>
             ) : (
-              closedTrades.slice(0, 20).map((trade) => (
+              paginatedClosedTrades.map((trade) => (
                 <div key={trade._id} className="bg-dark-700 rounded-lg p-4 border border-gray-600">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
@@ -409,6 +422,29 @@ const InvestorDashboard = () => {
                   </div>
                 </div>
               ))
+            )}
+
+            {/* Mobile Pagination Controls */}
+            {closedTrades.length > HISTORY_PAGE_SIZE && (
+              <div className="flex items-center justify-between pt-2">
+                <button
+                  onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
+                  disabled={historyPage <= 1}
+                  className="px-4 py-2 rounded-lg bg-dark-700 border border-gray-600 text-sm text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <span className="text-gray-400 text-sm">
+                  Page {historyPage} of {historyTotalPages}
+                </span>
+                <button
+                  onClick={() => setHistoryPage((p) => Math.min(historyTotalPages, p + 1))}
+                  disabled={historyPage >= historyTotalPages}
+                  className="px-4 py-2 rounded-lg bg-dark-700 border border-gray-600 text-sm text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
             )}
           </div>
         </div>
