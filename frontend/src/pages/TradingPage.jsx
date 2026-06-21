@@ -16,6 +16,8 @@ import { API_URL } from '../config/api'
 
 import { adjustQuotesForTradingDisplay } from '../services/chargePricing'
 
+import { isMarketOpenForInstrument } from '../utils/marketHours'
+
 
 
 const TradingPage = () => {
@@ -43,6 +45,17 @@ const TradingPage = () => {
   const [chartLoading, setChartLoading] = useState(false)
 
   const [selectedInstrument, setSelectedInstrument] = useState({ symbol: 'XAUUSD', name: 'CFDs on Gold (US$ / OZ)', bid: 0, ask: 0, spread: 0 })
+
+  // Ticks once a minute so weekend market open/closed state re-evaluates while the page stays open
+  const [marketClock, setMarketClock] = useState(() => Date.now())
+
+  useEffect(() => {
+    const id = setInterval(() => setMarketClock(Date.now()), 60000)
+    return () => clearInterval(id)
+  }, [])
+
+  // Is the selected instrument's market open right now? (Closed on weekends except crypto/24-7 symbols)
+  const marketOpen = isMarketOpenForInstrument(selectedInstrument, new Date(marketClock))
 
   const [showInstruments, setShowInstruments] = useState(window.innerWidth >= 768)
 
@@ -1513,7 +1526,17 @@ const TradingPage = () => {
 
     }
 
-    
+    // Block BUY/SELL on weekends for instruments whose market is closed (crypto stays open)
+
+    if (!isMarketOpenForInstrument(selectedInstrument)) {
+
+      setTradeError('Market is closed on weekends for this instrument. Trading resumes when the market reopens.')
+
+      return
+
+    }
+
+
 
     setIsExecutingTrade(true)
 
@@ -3327,9 +3350,9 @@ const TradingPage = () => {
 
                           onClick={() => executeMarketOrder('SELL')}
 
-                          disabled={isExecutingTrade}
+                          disabled={isExecutingTrade || !marketOpen}
 
-                          className="w-8 h-8 rounded-full bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-colors disabled:opacity-50"
+                          className="w-8 h-8 rounded-full bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 
                         >
 
@@ -3353,9 +3376,9 @@ const TradingPage = () => {
 
                           onClick={() => executeMarketOrder('BUY')}
 
-                          disabled={isExecutingTrade}
+                          disabled={isExecutingTrade || !marketOpen}
 
-                          className="w-8 h-8 rounded-full bg-blue-500 text-white text-sm font-bold hover:bg-blue-600 transition-colors disabled:opacity-50"
+                          className="w-8 h-8 rounded-full bg-blue-500 text-white text-sm font-bold hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 
                         >
 
@@ -4031,13 +4054,21 @@ const TradingPage = () => {
 
                     return (
 
+                  <>
+
+                  {!marketOpen && (
+                    <div className="mb-2 text-center text-[11px] text-yellow-500 bg-yellow-500/10 border border-yellow-500/30 rounded py-1.5 px-2">
+                      Market closed on weekends. Trading resumes when the market reopens.
+                    </div>
+                  )}
+
                   <div className="flex gap-2 mb-3">
 
-                    <button 
+                    <button
 
                       onClick={() => executeMarketOrder('SELL')}
 
-                      disabled={isExecutingTrade}
+                      disabled={isExecutingTrade || !marketOpen}
 
                       className="flex-1 rounded py-3 text-center transition-colors bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
 
@@ -4057,7 +4088,7 @@ const TradingPage = () => {
 
                       onClick={() => executeMarketOrder('BUY')}
 
-                      disabled={isExecutingTrade}
+                      disabled={isExecutingTrade || !marketOpen}
 
                       className="flex-1 rounded py-3 text-center transition-colors bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
 
@@ -4074,6 +4105,8 @@ const TradingPage = () => {
                     </button>
 
                   </div>
+
+                  </>
 
                     )
 
@@ -4435,7 +4468,7 @@ const TradingPage = () => {
 
                     onClick={() => executeMarketOrder(selectedSide)}
 
-                    disabled={isExecutingTrade}
+                    disabled={isExecutingTrade || !marketOpen}
 
                     className={`w-full py-3 rounded font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
 

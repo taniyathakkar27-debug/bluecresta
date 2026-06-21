@@ -168,7 +168,7 @@ export function Navbar() {
               <Link to="/about" className="block text-sm font-medium py-2 pl-3 hover:text-primary transition-colors text-white" onClick={() => setIsMobileMenuOpen(false)}>About Us</Link>
               <div className="flex flex-col gap-3 pt-4">
                 <Link to="/user/login" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button className="w-full pill-button pill-button-outline">Log In</Button>
+                  <Button className="w-full pill-button bg-transparent border-2 border-primary text-white hover:bg-primary hover:text-white">Log In</Button>
                 </Link>
                 <Link to="/user/signup" onClick={() => setIsMobileMenuOpen(false)}>
                   <Button className="w-full pill-button pill-button-primary">Open Account</Button>

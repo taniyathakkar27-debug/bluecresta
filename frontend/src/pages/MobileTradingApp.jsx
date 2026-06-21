@@ -30,6 +30,8 @@ import { useTheme } from '../context/ThemeContext'
 
 import KycTradeRequiredModal from '../components/KycTradeRequiredModal'
 
+import { isMarketOpenForInstrument } from '../utils/marketHours'
+
 
 
 const MobileTradingApp = () => {
@@ -51,6 +53,17 @@ const MobileTradingApp = () => {
   const [showOrderPanel, setShowOrderPanel] = useState(false)
 
   const [selectedInstrument, setSelectedInstrument] = useState(null)
+
+  // Ticks once a minute so weekend market open/closed state re-evaluates while the app stays open
+  const [marketClock, setMarketClock] = useState(() => Date.now())
+
+  useEffect(() => {
+    const id = setInterval(() => setMarketClock(Date.now()), 60000)
+    return () => clearInterval(id)
+  }, [])
+
+  // Is the selected instrument's market open right now? (Closed on weekends except crypto/24-7 symbols)
+  const marketOpen = isMarketOpenForInstrument(selectedInstrument, new Date(marketClock))
 
   const [user, setUser] = useState(null)
 
@@ -805,6 +818,18 @@ const MobileTradingApp = () => {
     if (!prices.bid || !prices.ask || prices.bid <= 0 || prices.ask <= 0) {
 
       showNotification('Market is closed or no price data available', 'error')
+
+      setIsExecuting(false)
+
+      return
+
+    }
+
+    // Block BUY/SELL (market) orders on weekends for instruments whose market is closed (crypto stays open)
+
+    if (orderType !== 'pending' && !isMarketOpenForInstrument(selectedInstrument)) {
+
+      showNotification('Market is closed on weekends for this instrument. Trading resumes when the market reopens.', 'error')
 
       setIsExecuting(false)
 
@@ -3116,15 +3141,21 @@ const MobileTradingApp = () => {
 
               {/* One-Click Buy/Sell */}
 
+              {!marketOpen && (
+                <div className="mb-3 text-center text-[11px] text-yellow-500 bg-yellow-500/10 border border-yellow-500/30 rounded-lg py-1.5 px-2">
+                  Market closed on weekends. Trading resumes when the market reopens.
+                </div>
+              )}
+
               <div className="flex gap-3 mb-4">
 
                 <button
 
                   onClick={() => executeOrder('SELL')}
 
-                  disabled={isExecuting}
+                  disabled={isExecuting || !marketOpen}
 
-                  className="flex-1 py-3 bg-red-600 rounded-xl disabled:opacity-50"
+                  className="flex-1 py-3 bg-red-600 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
 
                 >
 
@@ -3142,9 +3173,9 @@ const MobileTradingApp = () => {
 
                   onClick={() => executeOrder('BUY')}
 
-                  disabled={isExecuting}
+                  disabled={isExecuting || !marketOpen}
 
-                  className="flex-1 py-3 bg-blue-600 rounded-xl disabled:opacity-50"
+                  className="flex-1 py-3 bg-blue-600 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
 
                 >
 
@@ -3406,9 +3437,9 @@ const MobileTradingApp = () => {
 
                     onClick={() => executeOrder('SELL')}
 
-                    disabled={isExecuting}
+                    disabled={isExecuting || !marketOpen}
 
-                    className="flex-1 py-4 bg-red-500 text-white font-semibold rounded-xl disabled:opacity-50"
+                    className="flex-1 py-4 bg-red-500 text-white font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
 
                   >
 
@@ -3420,9 +3451,9 @@ const MobileTradingApp = () => {
 
                     onClick={() => executeOrder('BUY')}
 
-                    disabled={isExecuting}
+                    disabled={isExecuting || !marketOpen}
 
-                    className="flex-1 py-4 bg-blue-500 text-white font-semibold rounded-xl disabled:opacity-50"
+                    className="flex-1 py-4 bg-blue-500 text-white font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
 
                   >
 

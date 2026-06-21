@@ -109,7 +109,7 @@ const OrderBook = () => {
 
   const [currentPage, setCurrentPage] = useState(1)
 
-  const itemsPerPage = 20
+  const itemsPerPage = 10
 
   // Pagination state for history
   const [historyOffset, setHistoryOffset] = useState(0)
@@ -1615,7 +1615,7 @@ const OrderBook = () => {
 
                                 disabled={currentPage === 1}
 
-                                className="px-3 py-1.5 bg-dark-700 text-white rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-dark-600"
+                                className="allow-investor px-3 py-1.5 bg-dark-700 text-white rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-dark-600"
 
                               >
 
@@ -1629,7 +1629,7 @@ const OrderBook = () => {
 
                                 disabled={currentPage === totalPages}
 
-                                className="px-3 py-1.5 bg-dark-700 text-white rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-dark-600"
+                                className="allow-investor px-3 py-1.5 bg-dark-700 text-white rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-dark-600"
 
                               >
 
@@ -1649,7 +1649,7 @@ const OrderBook = () => {
                             <button
                               onClick={loadMoreHistory}
                               disabled={loadingMore}
-                              className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-lg text-sm font-medium hover:from-blue-700 hover:to-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                              className="allow-investor px-6 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-lg text-sm font-medium hover:from-blue-700 hover:to-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                             >
                               {loadingMore ? (
                                 <>

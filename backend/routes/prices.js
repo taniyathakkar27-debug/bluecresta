@@ -2,6 +2,7 @@ import dotenv from 'dotenv'
 dotenv.config()
 import express from 'express'
 import infowayService, { SUPPORTED_SYMBOLS, CRYPTO_SYMBOLS, FALLBACK_PRICES } from '../services/infowayService.js'
+import { isMarketOpen, isWeekendOpenInstrument, isWeekendNow } from '../utils/marketHours.js'
 
 const router = express.Router()
 
@@ -103,7 +104,11 @@ router.get('/instruments', async (req, res) => {
         minVolume: 0.01,
         maxVolume: 100,
         volumeStep: 0.01,
-        popular: isPopular
+        popular: isPopular,
+        // Whether this instrument trades on weekends (24/7), and whether its
+        // market is open right now. Used by the UI to gate BUY/SELL buttons.
+        weekendOpen: isWeekendOpenInstrument(symbol, category),
+        marketOpen: isMarketOpen(symbol, category)
       }
     })
     
@@ -112,6 +117,26 @@ router.get('/instruments', async (req, res) => {
   } catch (error) {
     console.error('Error fetching instruments:', error)
     res.json({ success: true, instruments: getDefaultInstruments() })
+  }
+})
+
+// GET /api/prices/market-status - Feed health (price freeze) + weekend status
+// (MUST be declared before /:symbol so it isn't captured as a symbol param)
+router.get('/market-status', (req, res) => {
+  try {
+    // When the Infoway feed is down (e.g. API key expired), no new ticks arrive
+    // and the last traded prices stay frozen in the cache. Surface that here so
+    // the UI can show a "prices frozen" indicator.
+    const feedHealthy = infowayService.isFeedHealthy()
+    res.json({
+      success: true,
+      feedHealthy,
+      frozen: !feedHealthy,
+      weekend: isWeekendNow(),
+      serverTime: Date.now()
+    })
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message })
   }
 })
 
